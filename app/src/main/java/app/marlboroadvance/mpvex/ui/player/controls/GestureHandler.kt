@@ -738,13 +738,13 @@ fun GestureHandler(
       .pointerInput(twoFingerSwipeSpeedGesture, areControlsLocked) {
         if (!twoFingerSwipeSpeedGesture || areControlsLocked) return@pointerInput
 
-        // Same preset ladder used by the long-press dynamic speed control, so the
-        // overlay (which snaps to these dots) stays visually consistent.
-        val speedPresets = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 3.5f, 4.0f)
+        // Continuous (non-preset) speed, like the reference app:
+        // a full screen-height swipe changes speed by swipeSensitivity.
+        val swipeSensitivity = 4.0f
+        val minSpeed = 0.1f
+        val maxSpeed = 4.0f
 
         awaitEachGesture {
-          // Don't start a new two-finger gesture while another vertical gesture
-          // (volume/brightness) is already driving the screen.
           if (isVerticalGestureActive) return@awaitEachGesture
 
           var resolved = false
@@ -753,6 +753,8 @@ fun GestureHandler(
           var startMidY = 0f
           var startSpeed = 1f
           var lastAppliedSpeed = 1f
+          var lastHapticBand = 0
+          var controlsWereShown = false
           val deadzone = 12.dp.toPx()
 
           awaitFirstDown(requireUnconsumed = false)
@@ -775,6 +777,7 @@ fun GestureHandler(
                 startMidY = midY
                 startSpeed = MPVLib.getPropertyFloat("speed") ?: 1f
                 lastAppliedSpeed = startSpeed
+                lastHapticBand = (startSpeed / 0.25f).toInt()
               } else if (!resolved) {
                 // Decide whether this is a pinch (distance changing) or a
                 // two-finger swipe (fingers translating together vertically)
@@ -785,29 +788,32 @@ fun GestureHandler(
                   isSwipeGesture = vertDelta > distDelta * 1.5f
                   if (isSwipeGesture) {
                     isVerticalGestureActive = true
+                    controlsWereShown = controlsShown
+                    if (controlsWereShown) viewModel.hideControls()
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    viewModel.playerUpdate.update { PlayerUpdates.DynamicSpeedControl(startSpeed, true) }
+                    viewModel.playerUpdate.update { PlayerUpdates.TwoFingerSpeedIndicator(startSpeed) }
                   }
                 }
               } else if (isSwipeGesture) {
                 // Swiping up (midY decreasing) increases speed, swiping down decreases it
                 val deltaY = startMidY - midY
                 val screenHeight = size.height.toFloat()
-                val presetsRange = speedPresets.size - 1
-                val indexDelta = (deltaY / screenHeight) * presetsRange * 3.5f
+                val newSpeed = (startSpeed + (deltaY / screenHeight) * swipeSensitivity)
+                  .coerceIn(minSpeed, maxSpeed)
+                // Two-decimal precision like the reference (1.92x, 0.85x, 1.35x)
+                val roundedSpeed = (newSpeed * 100f).roundToInt() / 100f
 
-                val startIndex = speedPresets.indexOfFirst {
-                  abs(it - startSpeed) < 0.01f
-                }.takeIf { it >= 0 } ?: 3
+                if (abs(lastAppliedSpeed - roundedSpeed) > 0.001f) {
+                  lastAppliedSpeed = roundedSpeed
+                  MPVLib.setPropertyFloat("speed", roundedSpeed)
+                  viewModel.playerUpdate.update { PlayerUpdates.TwoFingerSpeedIndicator(roundedSpeed) }
 
-                val newIndex = (startIndex + indexDelta.toInt()).coerceIn(0, speedPresets.size - 1)
-                val newSpeed = speedPresets[newIndex]
-
-                if (abs(lastAppliedSpeed - newSpeed) > 0.01f) {
-                  haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                  lastAppliedSpeed = newSpeed
-                  MPVLib.setPropertyFloat("speed", newSpeed)
-                  viewModel.playerUpdate.update { PlayerUpdates.DynamicSpeedControl(newSpeed, true) }
+                  // Light haptic tick each time a 0.25x boundary is crossed
+                  val band = (roundedSpeed / 0.25f).toInt()
+                  if (band != lastHapticBand) {
+                    lastHapticBand = band
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                  }
                 }
               }
 
@@ -819,6 +825,7 @@ fun GestureHandler(
 
           if (isSwipeGesture) {
             isVerticalGestureActive = false
+            if (controlsWereShown) viewModel.showControls()
             coroutineScope.launch {
               delay(600)
               viewModel.playerUpdate.update { PlayerUpdates.None }
