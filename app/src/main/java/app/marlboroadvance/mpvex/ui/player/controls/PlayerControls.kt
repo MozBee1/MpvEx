@@ -1251,3 +1251,20 @@ fun PlayerControls(
     )
   }
 }
+
+@Composable
+fun TopCenterSpeedPill(
+  speed: Float,
+  modifier: Modifier = Modifier,
+) {
+  Text(
+    text = String.format("%.2fx", speed),
+    color = Color.White,
+    fontSize = 14.sp,
+    fontWeight = FontWeight.Bold,
+    modifier =
+      modifier
+        .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(50))
+        .padding(horizontal = 14.dp, vertical = 5.dp),
+  )
+}
