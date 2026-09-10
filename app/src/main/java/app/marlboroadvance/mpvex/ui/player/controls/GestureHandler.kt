@@ -734,7 +734,7 @@ fun GestureHandler(
           } while (event.changes.any { it.pressed })
         }
       }
-      // Two-finger vertical swipe to increase/decrease playback speed
+            // Two-finger vertical swipe to increase/decrease playback speed
       .pointerInput(twoFingerSwipeSpeedGesture, areControlsLocked) {
         if (!twoFingerSwipeSpeedGesture || areControlsLocked) return@pointerInput
 
