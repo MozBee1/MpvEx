@@ -117,11 +117,14 @@ sealed class PlayerUpdates {
 
   data object MultipleSpeed : PlayerUpdates()
 
-    data class DynamicSpeedControl(
+      data class DynamicSpeedControl(
     val speed: Float,
     val showFullOverlay: Boolean = true,
   ) : PlayerUpdates()
 
+  data class TwoFingerSpeedIndicator(
+    val speed: Float,
+  ) : PlayerUpdates()
   data class TwoFingerSpeedIndicator(
     val speed: Float,
   ) : PlayerUpdates()
