@@ -300,7 +300,8 @@ fun PlayerControls(
         val playerPauseButton = createRef()
         val seekbar = createRef()
         val (playerUpdates) = createRefs()
-
+        val (twoFingerSpeedPill) = createRefs()
+        
         val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
         val isVolumeSliderShown by viewModel.isVolumeSliderShown.collectAsState()
         val brightness by viewModel.currentBrightness.collectAsState()
@@ -429,6 +430,7 @@ fun PlayerControls(
         LaunchedEffect(currentPlayerUpdate, aspectRatio, videoZoom) {
           if (currentPlayerUpdate is PlayerUpdates.MultipleSpeed ||
             currentPlayerUpdate is PlayerUpdates.DynamicSpeedControl ||
+            currentPlayerUpdate is PlayerUpdates.TwoFingerSpeedIndicator ||
             currentPlayerUpdate is PlayerUpdates.None
           ) {
             return@LaunchedEffect
@@ -591,6 +593,26 @@ fun PlayerControls(
 
         val areButtonsVisible = controlsShown && !areControlsLocked && !areSlidersShown
 
+        // Two-finger swipe speed pill — small top-center badge, flush with the
+        // very top of the screen (separate from the playerUpdates overlay,
+        // which stays at its 104dp/64dp position for long-press speed).
+        var lastTwoFingerSpeed by remember { mutableStateOf(1f) }
+        if (currentPlayerUpdate is PlayerUpdates.TwoFingerSpeedIndicator) {
+          lastTwoFingerSpeed = currentPlayerUpdate.speed
+        }
+        AnimatedVisibility(
+          visible = currentPlayerUpdate is PlayerUpdates.TwoFingerSpeedIndicator,
+          enter = fadeIn(playerControlsEnterAnimationSpec()),
+          exit = fadeOut(playerControlsExitAnimationSpec()),
+          modifier =
+            Modifier.constrainAs(twoFingerSpeedPill) {
+              linkTo(parent.start, parent.end)
+              top.linkTo(parent.top, 4.dp)
+            },
+        ) {
+          TopCenterSpeedPill(speed = lastTwoFingerSpeed)
+        }
+        
         AnimatedVisibility(
           visible = controlsShown && areControlsLocked,
           enter = fadeIn(),
